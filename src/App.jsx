@@ -244,7 +244,7 @@ export default function App() {
           <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
             <div ref={mapRef}
               style={{flex:1,position:"relative",backgroundImage:bgImage?`url(${bgImage})`:"none",
-                backgroundSize:"cover",backgroundPosition:"center",backgroundColor:"#0f172a",
+                backgroundSize:"contain",backgroundPosition:"center",backgroundRepeat:"no-repeat",backgroundColor:"#0f172a",
                 overflow:"hidden",cursor:"crosshair"}}
               onDragOver={e=>e.preventDefault()} onDrop={onDrop}>
               {!bgImage && (
