@@ -92,10 +92,7 @@ const T = {
 };
 
 // ── PROFILES ──────────────────────────────────────────────────────────────────
-const DEFAULT_PROFILES = [
-  { id:"1", name:"Alex",    avatar:"👨‍✈️", email:"" },
-  { id:"2", name:"Antonis", avatar:"⚓", email:"" },
-];
+const DEFAULT_PROFILES = [];
 const AVATARS = ["👨‍✈️","⚓","🚢","🛥️","👩‍✈️","🌊","⛵","🏖️"];
 
 export default function App() {
