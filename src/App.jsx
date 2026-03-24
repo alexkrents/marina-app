@@ -92,19 +92,12 @@ const T = {
 };
 
 // ── PROFILES ──────────────────────────────────────────────────────────────────
-const DEFAULT_PROFILES = [];
-const AVATARS = ["👨‍✈️","⚓","🚢","🛥️","👩‍✈️","🌊","⛵","🏖️"];
-
 export default function App() {
   const [lang,       setLang]       = useState(() => localStorage.getItem("marina_lang")||"el");
-  const [profiles,   setProfiles]   = useState(() => {
-    try { return JSON.parse(localStorage.getItem("marina_profiles")) || DEFAULT_PROFILES; } catch { return DEFAULT_PROFILES; }
-  });
-  const [loginStep,  setLoginStep]  = useState("profiles"); // profiles | form | newprofile
-  const [selProfile, setSelProfile] = useState(null);
+  const [authMode,   setAuthModeLocal] = useState("login");
   const [session,    setSession]    = useState(null);
   const [userRole,   setUserRole]   = useState("employee");
-  const [authForm,   setAuthForm]   = useState({ email:"", password:"", name:"", avatar:"👨‍✈️" });
+  const [authForm,   setAuthForm]   = useState({ email:"", password:"", name:"" });
   const [authErr,    setAuthErr]    = useState("");
   const [loading,    setLoading]    = useState(false);
   const [vessels,    setVessels]    = useState([]);
@@ -171,31 +164,16 @@ export default function App() {
 
   async function handleAuth(e) {
     e.preventDefault(); setAuthErr(""); setLoading(true);
-    const {error} = await supabase.auth.signInWithPassword({email:authForm.email, password:authForm.password});
-    if (error) { setAuthErr(error.message); }
-    else {
-      // Save email to profile
-      if (selProfile) {
-        const updated = profiles.map(p => p.id===selProfile.id ? {...p, email:authForm.email} : p);
-        setProfiles(updated); localStorage.setItem("marina_profiles", JSON.stringify(updated));
-      }
-    }
-    setLoading(false);
-  }
-
-  async function handleRegister(e) {
-    e.preventDefault(); setAuthErr(""); setLoading(true);
-    const {error} = await supabase.auth.signUp({
-      email:authForm.email, password:authForm.password,
-      options:{data:{full_name:authForm.name}},
-    });
-    if (error) setAuthErr(error.message);
-    else {
-      // Save new profile
-      const newP = {id:Date.now().toString(), name:authForm.name||authForm.email.split("@")[0], avatar:authForm.avatar, email:authForm.email};
-      const updated = [...profiles, newP];
-      setProfiles(updated); localStorage.setItem("marina_profiles", JSON.stringify(updated));
-      showToast(t.registeredConfirm,"info"); setLoginStep("profiles");
+    if (authMode==="login") {
+      const {error} = await supabase.auth.signInWithPassword({email:authForm.email, password:authForm.password});
+      if (error) setAuthErr(error.message);
+    } else {
+      const {error} = await supabase.auth.signUp({
+        email:authForm.email, password:authForm.password,
+        options:{data:{full_name:authForm.name}},
+      });
+      if (error) setAuthErr(error.message);
+      else { showToast(t.registeredConfirm,"info"); setAuthModeLocal("login"); }
     }
     setLoading(false);
   }
@@ -203,7 +181,6 @@ export default function App() {
   async function handleLogout() {
     await supabase.auth.signOut();
     setVessels([]); setHistory([]); setBgImage(null); setUsers([]); setMovements([]);
-    setLoginStep("profiles"); setSelProfile(null);
   }
 
   async function logHistory(vessel_id, action, before, after, vessel_name) {
@@ -326,109 +303,49 @@ export default function App() {
   });
   const maxMonthly = Math.max(...monthlyData.map(d=>d.count),1);
 
-  // ── LANG BUTTON ──────────────────────────────────────────────────────────
-  const LangBtn = () => (
-    <button onClick={toggleLang} style={{position:"fixed",top:16,right:16,zIndex:999,
-      padding:"6px 14px",background:"rgba(255,255,255,0.1)",backdropFilter:"blur(10px)",
-      border:"1px solid rgba(255,255,255,0.2)",borderRadius:20,color:"#f1f5f9",
-      fontSize:13,fontWeight:600,cursor:"pointer",letterSpacing:1}}>
-      {lang==="el"?"EN":"ΕΛ"}
-    </button>
-  );
+  const authMode = authModeLocal;
 
-  // ── PROFILES SCREEN ──────────────────────────────────────────────────────
+  // ── LOGIN SCREEN ──────────────────────────────────────────────────────────
   if (!session) return (
     <div style={S.bg}>
-      <LangBtn />
-      <div style={{width:"100%",maxWidth:600,padding:"0 20px"}}>
-        <div style={{textAlign:"center",marginBottom:48}}>
-          <div style={{fontSize:48,marginBottom:12}}>⚓</div>
-          <h1 style={{color:"#f1f5f9",fontSize:28,fontWeight:700,margin:"0 0 6px",letterSpacing:-0.5}}>{t.appName}</h1>
-          <p style={{color:"rgba(255,255,255,0.4)",fontSize:14,margin:0}}>{t.appSub}</p>
+      <button onClick={toggleLang} style={{position:"fixed",top:16,right:16,zIndex:999,
+        padding:"6px 14px",background:"rgba(255,255,255,0.1)",backdropFilter:"blur(10px)",
+        border:"1px solid rgba(255,255,255,0.2)",borderRadius:20,color:"#f1f5f9",
+        fontSize:13,fontWeight:600,cursor:"pointer",letterSpacing:1}}>
+        {lang==="el"?"EN":"ΕΛ"}
+      </button>
+      <div style={{width:"100%",maxWidth:400,padding:"0 20px"}}>
+        <div style={{textAlign:"center",marginBottom:36}}>
+          <div style={{fontSize:52,marginBottom:12}}>⚓</div>
+          <h1 style={{color:"#f1f5f9",fontSize:26,fontWeight:700,margin:"0 0 6px",letterSpacing:-0.5}}>{t.appName}</h1>
+          <p style={{color:"rgba(255,255,255,0.35)",fontSize:14,margin:0}}>{t.appSub}</p>
         </div>
-
-        {loginStep==="profiles" && (
-          <>
-            <p style={{color:"rgba(255,255,255,0.5)",textAlign:"center",fontSize:13,marginBottom:24}}>{t.selectProfile}</p>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(130px,1fr))",gap:16,marginBottom:32}}>
-              {profiles.map(p => (
-                <button key={p.id} onClick={() => { setSelProfile(p); setAuthForm(f=>({...f,email:p.email||""})); setLoginStep("form"); setAuthErr(""); }}
-                  style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",
-                    borderRadius:16,padding:"24px 16px",cursor:"pointer",transition:"all .2s",
-                    display:"flex",flexDirection:"column",alignItems:"center",gap:10}}
-                  onMouseEnter={e=>{e.currentTarget.style.background="rgba(255,255,255,0.12)";e.currentTarget.style.transform="scale(1.04)";}}
-                  onMouseLeave={e=>{e.currentTarget.style.background="rgba(255,255,255,0.06)";e.currentTarget.style.transform="scale(1)";}}>
-                  <div style={{width:64,height:64,borderRadius:"50%",background:"rgba(29,78,216,0.4)",
-                    display:"flex",alignItems:"center",justifyContent:"center",fontSize:30}}>{p.avatar}</div>
-                  <span style={{color:"#f1f5f9",fontSize:14,fontWeight:500}}>{p.name}</span>
-                </button>
-              ))}
-              <button onClick={() => { setLoginStep("newprofile"); setAuthForm({email:"",password:"",name:"",avatar:"👨‍✈️"}); setAuthErr(""); }}
-                style={{background:"rgba(255,255,255,0.03)",border:"2px dashed rgba(255,255,255,0.15)",
-                  borderRadius:16,padding:"24px 16px",cursor:"pointer",
-                  display:"flex",flexDirection:"column",alignItems:"center",gap:10}}
-                onMouseEnter={e=>{e.currentTarget.style.background="rgba(255,255,255,0.07)";}}
-                onMouseLeave={e=>{e.currentTarget.style.background="rgba(255,255,255,0.03)";}}>
-                <div style={{width:64,height:64,borderRadius:"50%",background:"rgba(255,255,255,0.06)",
-                  display:"flex",alignItems:"center",justifyContent:"center",fontSize:28,color:"rgba(255,255,255,0.3)"}}>+</div>
-                <span style={{color:"rgba(255,255,255,0.4)",fontSize:13}}>{t.newUser}</span>
+        <div style={{background:"rgba(255,255,255,0.05)",backdropFilter:"blur(20px)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:24,padding:"28px 24px"}}>
+          <div style={{display:"flex",gap:4,marginBottom:22,background:"rgba(0,0,0,0.2)",borderRadius:10,padding:4}}>
+            {["login","register"].map(m=>(
+              <button key={m} style={{flex:1,padding:"8px 0",border:"none",borderRadius:8,cursor:"pointer",
+                background:authMode===m?"rgba(29,78,216,0.8)":"transparent",
+                color:authMode===m?"#fff":"rgba(255,255,255,0.4)",fontSize:14,fontWeight:500}}
+                onClick={()=>{setAuthModeLocal(m);setAuthErr("");}}>
+                {m==="login"?t.login:t.register}
               </button>
-            </div>
-          </>
-        )}
-
-        {loginStep==="form" && selProfile && (
-          <div style={{background:"rgba(255,255,255,0.06)",backdropFilter:"blur(20px)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:24,padding:"32px 28px"}}>
-            <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:28}}>
-              <div style={{width:56,height:56,borderRadius:"50%",background:"rgba(29,78,216,0.4)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26}}>{selProfile.avatar}</div>
-              <div>
-                <div style={{color:"#f1f5f9",fontSize:18,fontWeight:600}}>{selProfile.name}</div>
-                <button onClick={() => { setLoginStep("profiles"); setAuthErr(""); }} style={{background:"none",border:"none",color:"rgba(255,255,255,0.4)",fontSize:12,cursor:"pointer",padding:0}}>{t.back}</button>
-              </div>
-            </div>
-            <form onSubmit={handleAuth} style={{display:"flex",flexDirection:"column",gap:14}}>
-              <input style={S.inp} type="email" placeholder={t.email} value={authForm.email} onChange={e=>setAuthForm({...authForm,email:e.target.value})} required />
-              <input style={S.inp} type="password" placeholder={t.password} value={authForm.password} onChange={e=>setAuthForm({...authForm,password:e.target.value})} required minLength={6} />
-              {authErr && <p style={{color:"#fca5a5",fontSize:13,margin:0,textAlign:"center"}}>{authErr}</p>}
-              <button style={{...S.btnP,width:"100%",padding:"13px",fontSize:15,borderRadius:12,marginTop:4}} type="submit" disabled={loading}>
-                {loading?t.pleaseWait:t.login}
-              </button>
-            </form>
+            ))}
           </div>
-        )}
-
-        {loginStep==="newprofile" && (
-          <div style={{background:"rgba(255,255,255,0.06)",backdropFilter:"blur(20px)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:24,padding:"32px 28px"}}>
-            <button onClick={() => setLoginStep("profiles")} style={{background:"none",border:"none",color:"rgba(255,255,255,0.4)",fontSize:13,cursor:"pointer",padding:0,marginBottom:20}}>{t.back}</button>
-            <div style={{marginBottom:20}}>
-              <p style={{color:"rgba(255,255,255,0.5)",fontSize:12,marginBottom:10}}>Avatar</p>
-              <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                {AVATARS.map(a => (
-                  <button key={a} onClick={()=>setAuthForm(f=>({...f,avatar:a}))}
-                    style={{width:44,height:44,borderRadius:"50%",fontSize:22,border:`2px solid ${authForm.avatar===a?"#1d4ed8":"transparent"}`,
-                      background:authForm.avatar===a?"rgba(29,78,216,0.3)":"rgba(255,255,255,0.06)",cursor:"pointer"}}>
-                    {a}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <form onSubmit={handleRegister} style={{display:"flex",flexDirection:"column",gap:14}}>
-              <input style={S.inp} placeholder={t.fullName} value={authForm.name} onChange={e=>setAuthForm({...authForm,name:e.target.value})} required />
-              <input style={S.inp} type="email" placeholder={t.email} value={authForm.email} onChange={e=>setAuthForm({...authForm,email:e.target.value})} required />
-              <input style={S.inp} type="password" placeholder={t.password} value={authForm.password} onChange={e=>setAuthForm({...authForm,password:e.target.value})} required minLength={6} />
-              {authErr && <p style={{color:"#fca5a5",fontSize:13,margin:0,textAlign:"center"}}>{authErr}</p>}
-              <button style={{...S.btnP,width:"100%",padding:"13px",fontSize:15,borderRadius:12,marginTop:4}} type="submit" disabled={loading}>
-                {loading?t.pleaseWait:t.createAccount}
-              </button>
-            </form>
-          </div>
-        )}
+          <form onSubmit={handleAuth} style={{display:"flex",flexDirection:"column",gap:12}}>
+            {authMode==="register"&&<input style={S.inp} placeholder={t.fullName} value={authForm.name} onChange={e=>setAuthForm({...authForm,name:e.target.value})} required />}
+            <input style={S.inp} type="email" placeholder={t.email} value={authForm.email} onChange={e=>setAuthForm({...authForm,email:e.target.value})} required />
+            <input style={S.inp} type="password" placeholder={t.password} value={authForm.password} onChange={e=>setAuthForm({...authForm,password:e.target.value})} required minLength={6} />
+            {authErr&&<p style={{color:"#fca5a5",fontSize:13,margin:0,textAlign:"center"}}>{authErr}</p>}
+            <button style={{...S.btnP,width:"100%",padding:"13px",fontSize:15,borderRadius:12,marginTop:4}} type="submit" disabled={loading}>
+              {loading?t.pleaseWait:authMode==="login"?t.login:t.createAccount}
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   );
 
   // ── MAIN APP ─────────────────────────────────────────────────────────────
-  const currentProfile = selProfile || profiles[0] || {name:session.user?.email,avatar:"👤"};
 
   return (
     <div style={S.app}>
@@ -463,9 +380,9 @@ export default function App() {
         </nav>
         <div style={{padding:"12px 10px",borderTop:"1px solid rgba(255,255,255,0.06)"}}>
           <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10,padding:"8px 10px",background:"rgba(255,255,255,0.05)",borderRadius:10}}>
-            <div style={{width:32,height:32,borderRadius:"50%",background:"rgba(29,78,216,0.4)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>{currentProfile.avatar}</div>
+            <div style={{width:32,height:32,borderRadius:"50%",background:"rgba(29,78,216,0.4)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>⚓</div>
             <div style={{overflow:"hidden"}}>
-              <div style={{color:"#f1f5f9",fontSize:13,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{currentProfile.name}</div>
+              <div style={{color:"#f1f5f9",fontSize:13,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{session.user?.email}</div>
               <div style={{color:"rgba(255,255,255,0.3)",fontSize:10}}>{isAdmin?"👑 Admin":"👤 "+t.employee}</div>
             </div>
           </div>
