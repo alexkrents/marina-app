@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="120 32 815 740" font-family="Arial, Helvetica, sans-serif">
+<defs><pattern id="roof" width="9" height="9" patternUnits="userSpaceOnUse"><rect width="9" height="9" fill="#D9E5F4"/><path d="M0 0V9" stroke="#C3D3E8" stroke-width="1.4"/></pattern></defs>
+<polygon points="160,228 678,48 918,680 900,752 136,714" fill="#0B2545" opacity="0.10" transform="translate(5 7)" stroke="#0B2545" stroke-width="10" stroke-linejoin="round"/>
+<polygon points="160,228 678,48 918,680 900,752 136,714" fill="#FCFDFE" stroke="#0B2545" stroke-width="3.5" stroke-linejoin="round"/>
+<polygon points="172,238 672,64 904,678 890,740 148,703" fill="none" stroke="#DCE3EC" stroke-width="1.2" stroke-linejoin="round"/>
+<rect x="-127.1" y="-56.0" width="260.2" height="120.0" rx="7" transform="translate(532.0 372.5) rotate(71.2)" fill="#0B2545" opacity="0.08"/>
+<rect x="-130.1" y="-60.0" width="260.2" height="120.0" rx="7" transform="translate(532.0 372.5) rotate(71.2)" fill="url(#roof)" stroke="#A9BCD6" stroke-width="1.3"/>
+<path d="M-124.1,0.0 H124.1" transform="translate(532.0 372.5) rotate(71.2)" stroke="#8FA6C6" stroke-width="2.2" stroke-linecap="round"/>
+<rect x="-208.7" y="-64.0" width="423.4" height="72.0" rx="7" transform="translate(357.5 502.5) rotate(73.8)" fill="#0B2545" opacity="0.08"/>
+<rect x="-211.7" y="-68.0" width="423.4" height="72.0" rx="7" transform="translate(357.5 502.5) rotate(73.8)" fill="url(#roof)" stroke="#A9BCD6" stroke-width="1.3"/>
+<path d="M-205.7,-32.0 H205.7" transform="translate(357.5 502.5) rotate(73.8)" stroke="#8FA6C6" stroke-width="2.2" stroke-linecap="round"/>
+<g transform="translate(4 5)" fill="#0B2545" opacity="0.12"><polygon points="552,540 632,522 652,620 575,640"/><polygon points="640,556 686,554 700,592 680,610 652,612"/></g>
+<polygon points="640,556 686,554 700,592 680,610 652,612" fill="#C4D1E2" stroke="#0B2545" stroke-width="1.8" stroke-linejoin="round"/>
+<polygon points="552,540 632,522 652,620 575,640" fill="#AEBFD6" stroke="#0B2545" stroke-width="1.8" stroke-linejoin="round"/>
+<path d="M592,531 L613.500,630 M552,540 L574,563 M632,522 L620,551 M575,640 L586,612 M652,620 L631,598 M574,563 L620,551 M586,612 L631,598" stroke="#0B2545" stroke-opacity="0.35" stroke-width="1.2" fill="none"/>
+</svg>
