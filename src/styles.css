@@ -156,6 +156,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); min-height: 32px
 .pill.water { background: #FFFFFF; color: var(--blue); border: 1.5px dashed var(--blue); }
 .pill.work { background: var(--accent-soft); color: #8A3A00; border-color: var(--accent); }
 .pill.urgent { background: #FDE8E8; color: #8F1414; border-color: #D98A8A; }
+.pill.away { background: #EEF1F5; color: #4A5B74; border-color: #C9D2DE; }
 
 /* Λίστες και πίνακες */
 .list { display: flex; flex-direction: column; }

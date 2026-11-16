@@ -279,14 +279,15 @@ function Workspace({ session, me, t, lang, toggleLang, notify }) {
   /* Παράγωγα */
   const slotById = useMemo(() => new Map(slots.map((s) => [s.id, s])), [slots]);
   const waterIds = useMemo(() => new Set(activeMoves.map((m) => m.vessel_id)), [activeMoves]);
-  const stateOf = useCallback((v) => (waterIds.has(v.id) ? "water" : v.status === "work" ? "work" : "berth"), [waterIds]);
+  const stateOf = useCallback((v) => (v.status === "away" ? "away" : waterIds.has(v.id) ? "water" : v.status === "work" ? "work" : "berth"), [waterIds]);
   const codeOf = useCallback((v) => slotById.get(v.slot_id)?.code || null, [slotById]);
   const selected = vessels.find((v) => v.id === selectedId) || null;
   const moving = vessels.find((v) => v.id === movingId) || null;
-  const unassigned = vessels.filter((v) => !v.slot_id);
+  const unassigned = vessels.filter((v) => !v.slot_id && v.status !== "away");
   const counts = useMemo(() => {
-    const c = { all: vessels.length, berth: 0, water: 0, work: 0 };
-    vessels.forEach((v) => { c[stateOf(v)] += 1; });
+    // «Όλα» = όσα βρίσκονται τώρα στον χώρο. Όσα έχουν αποχωρήσει μετρούν χωριστά.
+    const c = { all: 0, berth: 0, water: 0, work: 0, away: 0 };
+    vessels.forEach((v) => { const s = stateOf(v); c[s] += 1; if (s !== "away") c.all += 1; });
     return c;
   }, [vessels, stateOf]);
   const occupied = useMemo(() => new Set(vessels.filter((v) => v.slot_id).map((v) => v.slot_id)), [vessels]);
@@ -341,6 +342,20 @@ function Workspace({ session, me, t, lang, toggleLang, notify }) {
     if (error) { fail(error); return; }
     await log(v, next === "work" ? "Έναρξη εργασιών" : "Τέλος εργασιών", null);
     loadAll();
+  }
+  // Αποχώρηση: το σκάφος φεύγει από τον χώρο, η θέση του ελευθερώνεται και τα στοιχεία του μένουν.
+  async function setAway(v) {
+    const from = codeOf(v);
+    const { error } = await supabase.from("vessels").update({ status: "away", slot_id: null }).eq("id", v.id);
+    if (error) { fail(error); return; }
+    await log(v, "Αποχώρηση από τον χώρο", from ? `Θέση ${from}` : null);
+    setMovingId(null); notify(t.saved); loadAll();
+  }
+  async function bringBack(v) {
+    const { error } = await supabase.from("vessels").update({ status: "active" }).eq("id", v.id);
+    if (error) { fail(error); return; }
+    await log(v, "Επιστροφή στον χώρο", null);
+    setSelectedId(v.id); setMovingId(v.id); notify(t.saved); loadAll();
   }
   async function saveVessel(form, file) {
     const payload = {
@@ -461,7 +476,7 @@ function Workspace({ session, me, t, lang, toggleLang, notify }) {
     try {
       const XLSX = await import("xlsx");
       const { data: hist } = await supabase.from("vessel_history").select("created_at,vessel_name,action,details,user_email").order("created_at", { ascending: false }).limit(5000);
-      const stLabel = { berth: "Στη θέση", water: "Στο νερό", work: "Σε εργασίες" };
+      const stLabel = { berth: "Στη θέση", water: "Στο νερό", work: "Σε εργασίες", away: "Εκτός χώρου" };
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(vessels.map((v) => ({
         "Σκάφος": v.name, "Θέση": codeOf(v) || "", "Κατάσταση": stLabel[stateOf(v)], "Ιδιοκτήτης": v.owner || "",
@@ -483,7 +498,7 @@ function Workspace({ session, me, t, lang, toggleLang, notify }) {
     ...(isAdmin ? [["users", t.navUsers]] : []),
   ];
   const pendingCount = users.filter((u) => u.role === "pending").length;
-  const isVisible = (v) => mapFilter === "all" || stateOf(v) === mapFilter;
+  const isVisible = (v) => stateOf(v) !== "away" && (mapFilter === "all" || stateOf(v) === mapFilter);
 
   return (
     <div className="app">
@@ -573,6 +588,8 @@ function Workspace({ session, me, t, lang, toggleLang, notify }) {
                         onLaunch={() => setModal({ type: "launch", vesselId: selected.id })} onReturned={markReturned}
                         onMove={() => setMovingId(movingId === selected.id ? null : selected.id)}
                         onUnassign={() => moveVessel(selected, null)} onToggleWork={() => toggleWork(selected)}
+                        onAway={() => setAway(selected)} onBack={() => bringBack(selected)}
+                        awaySince={history.find((h) => h.vessel_id === selected.id && h.action === "Αποχώρηση από τον χώρο")?.created_at || null}
                         onEdit={() => setModal({ type: "vessel", vessel: selected })} onDelete={() => setModal({ type: "delete", vessel: selected })}
                         onClose={() => { setSelectedId(null); setMovingId(null); }} />
                     ) : (
@@ -622,7 +639,7 @@ function Workspace({ session, me, t, lang, toggleLang, notify }) {
         {loaded && view === "history" && <HistoryView t={t} lang={lang} history={history} onExport={exportExcel} />}
         {loaded && view === "overview" && (
           <OverviewView t={t} lang={lang} counts={counts} unassigned={unassigned.length} freeSlots={slots.length - occupied.size} slotsTotal={slots.length}
-            history={history} urgent={vessels.filter((v) => v.urgent)} codeOf={codeOf} onOpen={openVessel} />
+            history={history} urgent={vessels.filter((v) => v.urgent && v.status !== "away")} codeOf={codeOf} onOpen={openVessel} />
         )}
         {loaded && view === "users" && isAdmin && <UsersView t={t} users={users} meId={me.user_id} setRole={setRole} />}
       </main>
@@ -638,7 +655,7 @@ function Workspace({ session, me, t, lang, toggleLang, notify }) {
 
       {modal?.type === "vessel" && <VesselForm t={t} vessel={modal.vessel} onSave={saveVessel} onClose={() => setModal(null)} notify={notify} />}
       {modal?.type === "launch" && (
-        <LaunchForm t={t} vessels={vessels.filter((v) => !waterIds.has(v.id))} vesselId={modal.vesselId} onSave={launch} onClose={() => setModal(null)} />
+        <LaunchForm t={t} vessels={vessels.filter((v) => !waterIds.has(v.id) && v.status !== "away")} vesselId={modal.vesselId} onSave={launch} onClose={() => setModal(null)} />
       )}
       {modal?.type === "delete" && (
         <Modal title={`${t.del}: ${modal.vessel.name}`} onClose={() => setModal(null)}
@@ -653,11 +670,11 @@ function Workspace({ session, me, t, lang, toggleLang, notify }) {
 const isTodayStr = (d) => !!d && new Date(d).toDateString() === new Date().toDateString();
 
 function StatePill({ t, state }) {
-  return <span className={"pill " + state}>{state === "water" ? t.inWater : state === "work" ? t.work : t.berth}</span>;
+  return <span className={"pill " + state}>{state === "away" ? t.away : state === "water" ? t.inWater : state === "work" ? t.work : t.berth}</span>;
 }
 
 /* ── Κάρτα σκάφους ───────────────────────────────────────────────────────── */
-function VesselCard({ t, lang, v, state, code, photoUrl, isAdmin, moving, move, onLaunch, onReturned, onMove, onUnassign, onToggleWork, onEdit, onDelete, onClose }) {
+function VesselCard({ t, lang, v, state, code, photoUrl, isAdmin, moving, move, onLaunch, onReturned, onMove, onUnassign, onToggleWork, onAway, onBack, awaySince, onEdit, onDelete, onClose }) {
   return (
     <div className="card pad vessel-card">
       <div className="photo">{photoUrl ? <img src={photoUrl} alt={v.name} /> : <span>{t.noPhoto}</span>}</div>
@@ -668,21 +685,31 @@ function VesselCard({ t, lang, v, state, code, photoUrl, isAdmin, moving, move, 
         <button type="button" className="icon-btn plain push" aria-label={t.cancel} onClick={onClose}><Icon name="close" /></button>
       </div>
       <dl className="facts">
-        <div><dt>{t.slot}</dt><dd>{code || t.noSlot}</dd></div>
+        <div><dt>{t.slot}</dt><dd>{state === "away" ? "—" : code || t.noSlot}</dd></div>
         <div><dt>{t.owner}</dt><dd>{v.owner || "—"}</dd></div>
         <div><dt>{t.trailerPlate}</dt><dd>{v.trailer_plate || "—"}</dd></div>
         <div><dt>{t.registry}</dt><dd>{v.registry || "—"}</dd></div>
       </dl>
       {v.notes && <p className="muted small">{v.notes}</p>}
       {move && <p className="muted small">{t.since} {fmtDT(move.out_time || move.created_at, lang)}{move.expected_return ? ` · ${t.expectedReturn}: ${move.expected_return}` : ""}</p>}
-      {state === "water"
-        ? <button type="button" className="btn accent big" onClick={() => onReturned(move)}>{t.returned}</button>
-        : <button type="button" className="btn accent big" onClick={onLaunch}>{t.launch}</button>}
-      <div className="row wrap">
-        <button type="button" className={"btn grow" + (moving ? " primary" : "")} onClick={onMove}>{moving ? t.cancel : t.move}</button>
-        <button type="button" className="btn grow" onClick={onToggleWork}>{v.status === "work" ? t.unmarkWork : t.markWork}</button>
-      </div>
-      {code && <button type="button" className="btn" onClick={onUnassign}>{t.removeFromSlot}</button>}
+      {state === "away" ? (
+        <>
+          <p className="note">{t.awayNote}{awaySince ? ` ${t.awaySince} ${fmtDT(awaySince, lang)}` : ""}</p>
+          <button type="button" className="btn primary big" onClick={onBack}>{t.bringBack}</button>
+        </>
+      ) : (
+        <>
+          {state === "water"
+            ? <button type="button" className="btn accent big" onClick={() => onReturned(move)}>{t.returned}</button>
+            : <button type="button" className="btn accent big" onClick={onLaunch}>{t.launch}</button>}
+          <div className="row wrap">
+            <button type="button" className={"btn grow" + (moving ? " primary" : "")} onClick={onMove}>{moving ? t.cancel : t.move}</button>
+            <button type="button" className="btn grow" onClick={onToggleWork}>{v.status === "work" ? t.unmarkWork : t.markWork}</button>
+          </div>
+          {code && <button type="button" className="btn" onClick={onUnassign}>{t.removeFromSlot}</button>}
+          {state !== "water" && <button type="button" className="btn" onClick={onAway}>{t.markAway}</button>}
+        </>
+      )}
       {isAdmin && (
         <div className="row">
           <button type="button" className="btn grow" onClick={onEdit}>{t.edit}</button>
@@ -789,7 +816,7 @@ function VesselsView({ t, vessels, stateOf, codeOf, counts, isAdmin, onOpen, onN
   const rows = vessels.filter((v) => {
     const s = q.trim().toLowerCase();
     const hit = !s || [v.name, v.owner, v.trailer_plate, v.registry, codeOf(v)].some((x) => (x || "").toLowerCase().includes(s));
-    return hit && (filter === "all" || stateOf(v) === filter);
+    return hit && (filter === "all" ? stateOf(v) !== "away" : stateOf(v) === filter);
   });
   return (
     <>
@@ -800,7 +827,7 @@ function VesselsView({ t, vessels, stateOf, codeOf, counts, isAdmin, onOpen, onN
         {isAdmin && <button type="button" className="btn primary" onClick={onNew}>{t.newVessel}</button>}
       </div>
       <div className="chips">
-        {[["all", t.all], ["berth", t.berth], ["water", t.inWater], ["work", t.work]].map(([k, label]) => (
+        {[["all", t.inYard], ["berth", t.berth], ["water", t.inWater], ["work", t.work], ["away", t.away]].map(([k, label]) => (
           <button key={k} type="button" className={"chip" + (filter === k ? " on" : "")} onClick={() => setFilter(k)}>{label} · {counts[k]}</button>
         ))}
       </div>
@@ -811,7 +838,7 @@ function VesselsView({ t, vessels, stateOf, codeOf, counts, isAdmin, onOpen, onN
             <tbody>{rows.map((v) => (
               <tr key={v.id}>
                 <td><button type="button" className="link strong" onClick={() => onOpen(v.id)}>{v.name}</button>{v.urgent && <span className="pill urgent gap">{t.urgent}</span>}</td>
-                <td>{codeOf(v) || <span className="muted">{t.noSlot}</span>}</td>
+                <td>{stateOf(v) === "away" ? "—" : codeOf(v) || <span className="muted">{t.noSlot}</span>}</td>
                 <td><StatePill t={t} state={stateOf(v)} /></td>
                 <td>{v.owner || "—"}</td><td>{v.trailer_plate || "—"}</td><td>{v.registry || "—"}</td>
                 <td className="right nowrap">{isAdmin && <><button type="button" className="btn small" onClick={() => onEdit(v)}>{t.edit}</button> <button type="button" className="btn small danger" onClick={() => onDelete(v)}>{t.del}</button></>}</td>
